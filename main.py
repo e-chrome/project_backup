@@ -10,13 +10,17 @@ class YaUploader:
         self.token = token
 
     def upload(self, file_path, file):
-        href = self._get_upload_link(disk_file_path=file_path).get("href", "")
-        if href == '':
-            return
-        response = requests.put(href, data=file, timeout=5)
-        response.raise_for_status()
-        if response.status_code != 201:
-            print("Ошибка загрузки!")
+        try:
+            href = self._get_upload_link(disk_file_path=file_path).get("href", "")
+            if href == '':
+                print('Загрузка завершилась ошибкой!')
+                return
+            response = requests.put(href, data=file, timeout=5)
+            response.raise_for_status()
+            if response.status_code != 201:
+                print("Ошибка загрузки!")
+        except:
+            print('Загрузка завершилась ошибкой!')
 
     def _get_headers(self):
         return {
@@ -25,14 +29,18 @@ class YaUploader:
         }
 
     def _get_upload_link(self, disk_file_path):
-        upload_url = "https://cloud-api.yandex.net/v1/disk/resources/upload"
-        headers = self._get_headers()
-        params = {"path": disk_file_path, "overwrite": "true"}
-        response = requests.get(upload_url, headers=headers, params=params, timeout=5)
-        response.raise_for_status()
-        if response.status_code == 200:
-            return response.json()
-        else:
+        try:
+            upload_url = "https://cloud-api.yandex.net/v1/disk/resources/upload"
+            headers = self._get_headers()
+            params = {"path": disk_file_path, "overwrite": "true"}
+            response = requests.get(upload_url, headers=headers, params=params, timeout=5)
+            response.raise_for_status()
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print('Не удалось получить ссылку для загрузки фото!')
+                return {}
+        except:
             print('Не удалось получить ссылку для загрузки фото!')
             return {}
 
@@ -54,18 +62,22 @@ class VkPhotoGetter:
             'count': '100',
             'v': self.version
         }
-        response = requests.get(url, params=params, timeout=5)
-        response.raise_for_status()
-        if response.status_code != 200:
-            print('Не удалось получить список фотографий из Vk')
-            return []
-        for photo in response.json()['response']['items']:
-            processed_photo = self._find_max_photo(photo)
-            processed_photo = self._to_name_photo(response, processed_photo)
-            photo_list.append(processed_photo)
-            # сортируем список фотографий по размеру в пикселях, чтобы скачивать фотографии по порядку согласно ФТ
-            sorted_photo_list = sorted(photo_list, key=lambda item: item['size'], reverse=True)
-        return sorted_photo_list
+        try:
+            response = requests.get(url, params=params, timeout=5)
+            response.raise_for_status()
+            if response.status_code != 200:
+                print('Не удалось получить список фотографий из Vk')
+                quit()
+            for photo in response.json()['response']['items']:
+                processed_photo = self._find_max_photo(photo)
+                processed_photo = self._to_name_photo(response, processed_photo)
+                photo_list.append(processed_photo)
+                # сортируем список фотографий по размеру в пикселях, чтобы скачивать фотографии по порядку согласно ФТ
+                sorted_photo_list = sorted(photo_list, key=lambda item: item['size'], reverse=True)
+            return sorted_photo_list
+        except:
+            print('Работа с API VK завершилась ошибкой!')
+            quit()
 
     def _find_max_photo(self, photo):
         # ищем для каждой фотографии вариант максимального размера и оставляем только его
@@ -108,12 +120,15 @@ def download_photo_from_vk(photo_list):
         info_list = []
         for photo in photo_list[0:quantity]:
             info_dict = {}
-            with open('pictures/' + photo['name'] + '.jpg', 'wb') as f:
-                picture = requests.get(photo['url'])
-                f.write(picture.content)
-            info_dict['file_name'] = photo['name'] + '.jpg'
-            info_dict['size'] = photo['size']
-            info_list.append(info_dict)
+            try:
+                with open('pictures/' + photo['name'] + '.jpg', 'wb') as f:
+                    picture = requests.get(photo['url'])
+                    f.write(picture.content)
+                info_dict['file_name'] = photo['name'] + '.jpg'
+                info_dict['size'] = photo['size']
+                info_list.append(info_dict)
+            except:
+                print('Не удалось загрузить фото!')
             bar.next()
         bar.finish()
         with open('info.json', 'w') as f:
@@ -142,12 +157,14 @@ def put_photo_on_ya_disk_from_vk(photo_list, uploader, path='/api_vk/'):
         info_list = []
         for photo in photo_list[0:quantity]:
             info_dict = {}
-            # with open('pictures/' + photo['name'] + '.jpg', 'wb') as f:
-            picture = requests.get(photo['url'])
-            uploader.upload(path + photo['name'] + '.jpg', picture.content)
-            info_dict['file_name'] = photo['name'] + '.jpg'
-            info_dict['size'] = photo['size']
-            info_list.append(info_dict)
+            try:
+                picture = requests.get(photo['url'])
+                uploader.upload(path + photo['name'] + '.jpg', picture.content)
+                info_dict['file_name'] = photo['name'] + '.jpg'
+                info_dict['size'] = photo['size']
+                info_list.append(info_dict)
+            except:
+                print('Не удалось загрузить фото!')
             bar.next()
         bar.finish()
         with open('info.json', 'w') as f:
